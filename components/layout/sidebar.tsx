@@ -27,17 +27,17 @@ const navItems = [
   {
     name: "Escalations",
     icon: AlertTriangle,
-    href: "#",
+    href: "/escalations",
   },
   {
     name: "Audit Trail",
     icon: FileClock,
-    href: "#",
+    href: "/audit-trail",
   },
   {
     name: "Evaluations",
     icon: BarChart3,
-    href: "#",
+    href: "/evaluations",
   },
 ];
 
@@ -69,20 +69,9 @@ export function Sidebar() {
           const Icon = item.icon;
 
           const active =
-            item.href !== "#" &&
-            pathname === item.href;
-
-          if (item.href === "#") {
-            return (
-              <div
-                key={item.name}
-                className="flex w-full cursor-default items-center gap-3 rounded-xl px-3 py-3 text-sm text-zinc-600"
-              >
-                <Icon className="h-4 w-4" />
-                {item.name}
-              </div>
-            );
-          }
+            item.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(item.href);
 
           return (
             <Link

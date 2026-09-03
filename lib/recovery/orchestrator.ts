@@ -3,19 +3,63 @@ import { buildRecoveryContext } from "./context-builder";
 import { generateMockDecision } from "../ai/decision-engine";
 import { evaluatePolicies } from "../policy/policy-engine";
 import { executeRecoveryAction } from "../tools/executor";
-import { logAuditEvent } from "../audit/logger";
+import {
+  AuditEvent,
+  logAuditEvent,
+} from "../audit/logger";
 
 export async function processRecoveryCase(
   recoveryCase: RecoveryCase
 ) {
-  logAuditEvent(
+  /*
+   * Every case gets its own isolated audit trail.
+   *
+   * We still log globally for terminal observability,
+   * but we ALSO return the events with the case result.
+   */
+  const auditTrail: AuditEvent[] = [];
+
+  function recordAuditEvent(
+    type: string,
+    message: string,
+    metadata?: Record<string, unknown>
+  ) {
+    const event = logAuditEvent(
+      type,
+      message,
+      metadata
+    );
+
+    auditTrail.push(event);
+
+    return event;
+  }
+
+  /*
+   * -------------------------------------------------
+   * 1. CASE RECEIVED
+   * -------------------------------------------------
+   */
+
+  recordAuditEvent(
     "CASE_PROCESSING_STARTED",
-    `Started processing ${recoveryCase.id}`
+    `Started processing ${recoveryCase.id}`,
+    {
+      caseId: recoveryCase.id,
+      paymentId: recoveryCase.paymentId,
+    }
   );
 
-  const context = buildRecoveryContext(recoveryCase);
+  /*
+   * -------------------------------------------------
+   * 2. CONTEXT BUILT
+   * -------------------------------------------------
+   */
 
-  logAuditEvent(
+  const context =
+    buildRecoveryContext(recoveryCase);
+
+  recordAuditEvent(
     "CONTEXT_BUILT",
     "Recovery context created",
     {
@@ -23,9 +67,16 @@ export async function processRecoveryCase(
     }
   );
 
-  const decision = generateMockDecision(recoveryCase);
+  /*
+   * -------------------------------------------------
+   * 3. AI DECISION
+   * -------------------------------------------------
+   */
 
-  logAuditEvent(
+  const decision =
+    generateMockDecision(recoveryCase);
+
+  recordAuditEvent(
     "DECISION_GENERATED",
     `Decision: ${decision.action}`,
     {
@@ -35,42 +86,77 @@ export async function processRecoveryCase(
     }
   );
 
-  const policyResult = evaluatePolicies(
-    recoveryCase,
-    decision
-  );
+  /*
+   * -------------------------------------------------
+   * 4. POLICY VALIDATION
+   * -------------------------------------------------
+   */
 
-  // If policy blocks the AI decision
+  const policyResult =
+    evaluatePolicies(
+      recoveryCase,
+      decision
+    );
+
+  /*
+   * -------------------------------------------------
+   * POLICY BLOCKED
+   * -------------------------------------------------
+   */
+
   if (!policyResult.approved) {
-    logAuditEvent(
+    recordAuditEvent(
       "POLICY_BLOCKED",
       `Action ${decision.action} was blocked`,
       {
-        violations: policyResult.violations,
-        fallbackAction: policyResult.fallbackAction,
-        requiresHuman: policyResult.requiresHuman,
+        violations:
+          policyResult.violations,
+
+        fallbackAction:
+          policyResult.fallbackAction,
+
+        requiresHuman:
+          policyResult.requiresHuman,
       }
     );
 
-    // No safe fallback available
+    /*
+     * No safe fallback exists.
+     */
+
     if (!policyResult.fallbackAction) {
+      recordAuditEvent(
+        "RECOVERY_STOPPED",
+        "Recovery stopped because no policy-safe fallback was available",
+        {
+          violations:
+            policyResult.violations,
+        }
+      );
+
       return {
         recoveryCase,
         context,
         decision,
         policyResult,
         execution: null,
+        auditTrail,
       };
     }
 
-    // Execute safe fallback
+    /*
+     * -------------------------------------------------
+     * 5A. EXECUTE SAFE FALLBACK
+     * -------------------------------------------------
+     */
+
     const fallbackExecution =
       await executeRecoveryAction(
         recoveryCase,
         policyResult.fallbackAction
       );
 
-    logAuditEvent(
+    recordAuditEvent(
       "FALLBACK_EXECUTED",
       `Executed fallback ${policyResult.fallbackAction}`,
       {
@@ -83,12 +169,20 @@ export async function processRecoveryCase(
       context,
       decision,
       policyResult,
-      execution: fallbackExecution,
+      execution:
+        fallbackExecution,
+
+      auditTrail,
     };
   }
 
-  // AI decision passed policy
-  logAuditEvent(
+  /*
+   * -------------------------------------------------
+   * POLICY APPROVED
+   * -------------------------------------------------
+   */
+
+  recordAuditEvent(
     "POLICY_APPROVED",
     `Action ${decision.action} approved`,
     {
@@ -96,13 +190,19 @@ export async function processRecoveryCase(
     }
   );
 
+  /*
+   * -------------------------------------------------
+   * 5B. EXECUTE APPROVED ACTION
+   * -------------------------------------------------
+   */
+
   const execution =
     await executeRecoveryAction(
       recoveryCase,
       decision.action
     );
 
-  logAuditEvent(
+  recordAuditEvent(
     "ACTION_EXECUTED",
     `Executed ${decision.action}`,
     {
@@ -110,11 +210,19 @@ export async function processRecoveryCase(
     }
   );
 
+  /*
+   * -------------------------------------------------
+   * FINAL RESULT
+   * -------------------------------------------------
+   */
+
   return {
     recoveryCase,
     context,
     decision,
     policyResult,
     execution,
+
+    auditTrail,
   };
 }
