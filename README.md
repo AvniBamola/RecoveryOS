@@ -12,6 +12,15 @@ RecoveryOS was built for the **Razorpay AI Buildathon 2026 — AI Revenue Recove
 
 ---
 
+## 🌐 Live Demo
+
+**RecoveryOS is deployed and publicly accessible on Vercel:**
+
+👉 https://recovery-os-zeta.vercel.app
+
+> Explore the recovery dashboard, case-level decision traces, policy guardrails,
+> human escalations, audit trail, and deterministic evaluation benchmark.
+
 ## The Problem
 
 A failed payment does not always mean:
