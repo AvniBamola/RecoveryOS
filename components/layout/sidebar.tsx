@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
 import {
   LayoutDashboard,
   RefreshCcw,
@@ -14,27 +17,33 @@ const navItems = [
   {
     name: "Dashboard",
     icon: LayoutDashboard,
-    active: true,
+    href: "/",
   },
   {
     name: "Recovery Queue",
     icon: RefreshCcw,
+    href: "/recovery-queue",
   },
   {
     name: "Escalations",
     icon: AlertTriangle,
+    href: "#",
   },
   {
     name: "Audit Trail",
     icon: FileClock,
+    href: "#",
   },
   {
     name: "Evaluations",
     icon: BarChart3,
+    href: "#",
   },
 ];
 
 export function Sidebar() {
+  const pathname = usePathname();
+
   return (
     <aside className="fixed left-0 top-0 flex h-screen w-64 flex-col border-r border-white/10 bg-[#080b12] px-4 py-6">
       <div className="mb-10 px-3">
@@ -59,18 +68,35 @@ export function Sidebar() {
         {navItems.map((item) => {
           const Icon = item.icon;
 
+          const active =
+            item.href !== "#" &&
+            pathname === item.href;
+
+          if (item.href === "#") {
+            return (
+              <div
+                key={item.name}
+                className="flex w-full cursor-default items-center gap-3 rounded-xl px-3 py-3 text-sm text-zinc-600"
+              >
+                <Icon className="h-4 w-4" />
+                {item.name}
+              </div>
+            );
+          }
+
           return (
-            <button
+            <Link
               key={item.name}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition ${
-                item.active
+              href={item.href}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${
+                active
                   ? "bg-white/10 text-white"
                   : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
               }`}
             >
               <Icon className="h-4 w-4" />
               {item.name}
-            </button>
+            </Link>
           );
         })}
       </nav>
